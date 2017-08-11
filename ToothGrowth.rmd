@@ -1,0 +1,102 @@
+---
+title: "ToothGrowth Analysis"
+author: "Ashly Yashchin"
+date: "8/5/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+The following analysis is a basic exploration of the ToothGrowth dataset in R, exploring the effect of Vitamin C on tooth growth in Guinea Pigs.
+
+There were 60 guinea pigs used in this sample. Each animal received 1 of 3 dose levels of Vitamin C (0.5,1,2) by one of two delivery methods (orange juice or ascorbic acid coded as VC).
+
+There are 60 observations and 3 variable columns: 
+* len = the numeric tooth length
+* supp = the delivery method
+* dose = milligrams/day
+
+#Exploration
+```{r, message=FALSE}
+#First let's set up our workspace and load our data.
+library(ggplot2)
+library(dplyr)
+data("ToothGrowth")
+head(ToothGrowth)
+
+#Now, let's look at some exploratory plots.
+ggplot(ToothGrowth,aes(x=dose,y=len))+geom_point(aes(color=supp))+ggtitle("Tooth Growth by Vitamin C Supplementation")+xlab("Length Grown")+ylab("Dose in Mg/Day")
+```
+At first glance, it appears, that the Vitamin C administered in the form of OJ, resulted in greater growth, at least at the 0.5mg and 1.0mg levels. However, when we get to 2.0mg, it seems less clear. 
+
+Let's add another column to calculate the length grown per mg administered.
+```{r}
+ToothGrowth <- mutate(ToothGrowth,len_mg=len/dose)
+
+#Let's plot again.
+ggplot(ToothGrowth,aes(x=dose,y=len_mg))+geom_point(aes(color=supp))+ggtitle("Tooth Growth per Mg of Vitamin C Supplementation")+xlab("Length Grown per Mg")+ylab("Dose in Mg/Day")
+```
+
+What's interesting here is we see an inverse of our first plot. In the first plot it's clear that the higher the dose given, the greater the tooth growth. However, when we look at it on a growth/mg basis, we see that the effect lessens at higher doses. Each subsequent 0.5 mg is not as effective as the first. 
+
+We also see that the variability is very high at the 0.5 dose and gets smaller as we get closer to 2.0. 
+
+Let's look at the supplementation types side by side.
+```{r}
+#We need to group our data by dosage and then by supplementation type. 
+ToothGrowth <- group_by(ToothGrowth,dose,supp)
+
+#Now, let's compare the mean length grown.
+TGMeans <- summarize(ToothGrowth,mean(len),var(len),sd(len)) %>% rename(mean_len=`mean(len)`,var_len=`var(len)`,sd_len=`sd(len)`)
+ggplot(TGMeans,aes(x=dose,y=mean_len,fill=supp))+geom_bar(position="dodge",stat="identity")+ggtitle("Tooth Growth by Dose & Method")+xlab("Dose_Mg")+ylab("Mean Length Grown")
+print(TGMeans)
+```
+
+#Testing
+##Hypothesis
+My hypothesis is that, at doses of 1.0mg or less, OJ, is more effective than VC. At doses of 2.0 a clear winner cannot be determined. 
+
+In order to determine if this hypothesis is true we need to test at each dosage level. 
+```{r}
+#Let's break out our data by dosage level. 
+OJDose.5 <- ToothGrowth$len[31:40]
+OJDose1.0 <- ToothGrowth$len[41:50]
+OJDose2.0 <- ToothGrowth$len[51:60]
+VCDose.5 <- ToothGrowth$len[1:10]
+VCDose1.0 <- ToothGrowth$len[11:20]
+VCDose2.0 <- ToothGrowth$len[21:30]
+```
+
+##Assumptions
+We will assume variance is unequal (that seems pretty clear from our exploratory graphs). We will use a 95% confidence interval for our test.
+
+The data is not paired as separate guinea pigs were used for each observation. None received multiple doses. 
+
+##T-Tests
+```{r}
+#0.5 Dose
+#Null Hypothesis = mean(OJDose.5)==mean(VCDose.5)
+#Alternative Hypothese = mean(OJDose.5) > mean(VCDose.5)
+t.test(OJDose.5,VCDose.5,paired=FALSE,var.equal = FALSE,alternative = "greater")
+#REJECT the Null Hypothesis
+
+#1.0 Dose
+#Null Hypothesis = mean(OJDose1.0)==mean(VCDose1.0)
+#Alternative Hypothese = mean(OJDose1.0) > mean(VCDose1.0)
+t.test(OJDose1.0,VCDose1.0,paired=FALSE,var.equal = FALSE,alternative = "greater")
+#REJECT the Null Hypothesis
+
+#2.0 Dose
+#Null Hypothesis = mean(OJDose2.0)==mean(VCDose2.0)
+#Alternative Hypothese = mean(OJDose2.0) > mean(VCDose2.0)
+t.test(OJDose2.0,VCDose2.0,paired=FALSE,var.equal = FALSE,alternative = "greater")
+#FAIL TO REJECT the Null Hypothesis
+```
+
+#Results
+Based on the above t.tests, it appaers that our hypothesis was correct. With p-values way less than 5% on the 0.5 mg and 1.0 mg dose level tests, we can say, with confidence, that OJ is the more effective measure of supplementation. However, when we get to the 2.0 dose level, we can not confidently say the same, as a p-value of 0.5181 means that 51.8% of the time, the results of OJ supplementation might equate to less growth than VC supplementation.
+
+Even with these results, with a sample size of only 10 per variable, I would recommend a larger study to confirm these findings.
